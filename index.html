@@ -22,7 +22,7 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;ba
 .music{margin:45px auto 0;max-width:600px;text-align:center;padding:24px;border-radius:20px;background:#fff;border:1px solid #efdde3}.music a{display:inline-block;text-decoration:none;background:#8f4f66;color:white;padding:12px 18px;border-radius:999px;font-weight:600;box-shadow:0 8px 18px rgba(100,45,67,.16)}.music p{font-size:13px;color:#98707b;margin:10px 0 16px}
 .footer{text-align:center;margin-top:70px;color:#9d7180;font-family:"DM Sans",sans-serif;font-size:22px}.heart{position:fixed;z-index:0;font-size:20px;opacity:.35;animation:float 7s linear infinite;pointer-events:none}@keyframes float{from{transform:translateY(105vh) rotate(0);opacity:0}15%{opacity:.35}to{transform:translateY(-10vh) rotate(180deg);opacity:0}}
 
-.hold-secret{position:relative;overflow:hidden;border:1px solid #e6b6c5;background:#fff7fa;color:#8f4f66;border-radius:999px;padding:14px 28px;font:600 14px "DM Sans",sans-serif;letter-spacing:.03em;cursor:pointer;touch-action:none;min-width:190px}.hold-fill{position:absolute;inset:0;width:0;background:#f2c0d0;transition:width .08s linear;z-index:0}.hold-text{position:relative;z-index:1}.hold-secret.is-holding{transform:scale(.98)}.secret-message{max-height:0;opacity:0;overflow:hidden;transition:max-height .7s ease,opacity .5s ease;margin:0 auto;font-family:"DM Sans",sans-serif;font-size:17px;line-height:1.6}.secret.revealed .secret-message{max-height:4000px;opacity:1;margin-top:22px}.secret.revealed .hold-secret{display:none}
+.hold-secret{position:relative;overflow:hidden;border:1px solid #e6b6c5;background:#fff7fa;color:#8f4f66;border-radius:999px;padding:14px 28px;font:600 14px "DM Sans",sans-serif;letter-spacing:.03em;cursor:pointer;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;min-width:190px}.hold-fill{position:absolute;inset:0;width:0;background:#f2c0d0;transition:width .08s linear;z-index:0}.hold-text{position:relative;z-index:1}.hold-secret.is-holding{transform:scale(.98)}.secret-message{max-height:0;opacity:0;overflow:hidden;transition:max-height .7s ease,opacity .5s ease;margin:0 auto;font-family:"DM Sans",sans-serif;font-size:17px;line-height:1.6}.secret.revealed .secret-message{max-height:none;opacity:1;margin-top:22px}.secret.revealed .hold-secret{display:none}
 .secret-photo{display:block;width:min(100%,520px);margin:0 auto;border-radius:18px;box-shadow:0 14px 35px rgba(72,45,55,.18);object-fit:cover}
 .secret-message p{font-family:"Kalam",cursive;font-size:22px;line-height:1.5;margin:18px 0 0}
 .music #musicStatus{font-size:12px;color:#98707b;margin-top:8px}
@@ -115,7 +115,8 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;ba
   box-shadow: 0 14px 35px rgba(72,45,55,.16);
 }
 
-</style></head><body>
+</style><meta name="card-build" content="v4-long-press-secret-photo-video">
+</head><body>
 <div class="heart" style="left:7%;animation-delay:0s">♡</div><div class="heart" style="left:28%;animation-delay:2s">♥</div><div class="heart" style="left:64%;animation-delay:4s">♡</div><div class="heart" style="left:87%;animation-delay:1s">♥</div>
 <section class="hero" id="cover"><div class="envelope-wrap"><div class="kicker">a little something for you</div><h1>HAPPY BIRTHDAY<br>MY ASU DIIII💕</h1><div class="subtitle">to my dearest asu di</div><div class="envelope" id="envelope"><div class="flap"></div><div class="env-front"></div><div class="seal">P</div></div><div class="env-note">tap the envelope to open your card ♡</div></div></section>
 <main class="content" id="content"><div class="greeting"><div class="small">to my dearest asu di</div><h2>Happy 23rd, Asu Di! ❤️</h2><p>love pri 💕</p></div>
@@ -230,57 +231,63 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;ba
     if(e.target === cover || e.target.closest('.envelope-wrap')) openCard(e);
   });
 
-  // Reliable press-and-hold secret reveal (works with iPhone touch + pointer events).
-  let holdStart = 0;
-  let holdFrame = null;
+  // Reliable press-and-hold secret reveal (single touch/mouse path).
+  let holdTimer = null;
+  let holdProgressTimer = null;
   let holding = false;
-  const HOLD_MS = 1400;
+  const HOLD_MS = 1200;
+
+  function resetHold(){
+    holding = false;
+    if(holdTimer) clearTimeout(holdTimer);
+    if(holdProgressTimer) clearInterval(holdProgressTimer);
+    holdTimer = null;
+    holdProgressTimer = null;
+    if(!secret.classList.contains('revealed')){
+      fill.style.width = '0%';
+      holdSecret.classList.remove('is-holding');
+    }
+  }
 
   function revealSecret(){
+    if(secret.classList.contains('revealed')) return;
     holding = false;
-    if(holdFrame) cancelAnimationFrame(holdFrame);
-    holdFrame = null;
+    if(holdTimer) clearTimeout(holdTimer);
+    if(holdProgressTimer) clearInterval(holdProgressTimer);
+    holdTimer = null;
+    holdProgressTimer = null;
     fill.style.width = '100%';
+    holdSecret.classList.remove('is-holding');
     secret.classList.add('revealed');
     holdSecret.setAttribute('aria-expanded','true');
-    if(navigator.vibrate) navigator.vibrate([20, 30, 20]);
+    if(navigator.vibrate) navigator.vibrate([20,30,20]);
   }
 
   function startHold(e){
     if(secret.classList.contains('revealed')) return;
     if(e && e.cancelable) e.preventDefault();
+    resetHold();
     holding = true;
-    holdStart = performance.now();
-    fill.style.width = '0%';
     holdSecret.classList.add('is-holding');
-
-    function tick(now){
-      if(!holding) return;
-      const pct = Math.min(100, ((now - holdStart) / HOLD_MS) * 100);
-      fill.style.width = pct + '%';
-      if(pct >= 100) revealSecret();
-      else holdFrame = requestAnimationFrame(tick);
-    }
-    holdFrame = requestAnimationFrame(tick);
-  }
-
-  function cancelHold(e){
-    if(e && e.cancelable) e.preventDefault();
-    if(!holding || secret.classList.contains('revealed')) return;
-    holding = false;
-    if(holdFrame) cancelAnimationFrame(holdFrame);
-    holdFrame = null;
-    holdSecret.classList.remove('is-holding');
+    const started = performance.now();
     fill.style.width = '0%';
+    holdProgressTimer = setInterval(function(){
+      if(!holding){ clearInterval(holdProgressTimer); return; }
+      const pct = Math.min(100, ((performance.now()-started)/HOLD_MS)*100);
+      fill.style.width = pct + '%';
+    }, 16);
+    holdTimer = setTimeout(revealSecret, HOLD_MS);
   }
 
-  ['pointerdown','touchstart','mousedown'].forEach(function(type){
-    holdSecret.addEventListener(type, startHold, {passive:false});
-  });
-  ['pointerup','pointercancel','touchend','touchcancel','mouseup','mouseleave'].forEach(function(type){
-    holdSecret.addEventListener(type, cancelHold, {passive:false});
-  });
+  // On iPhone/iPad, use touch events only. On desktop, use mouse events.
+  holdSecret.addEventListener('touchstart', startHold, {passive:false});
+  holdSecret.addEventListener('touchend', function(e){ if(e.cancelable) e.preventDefault(); resetHold(); }, {passive:false});
+  holdSecret.addEventListener('touchcancel', resetHold, {passive:true});
+  holdSecret.addEventListener('mousedown', function(e){ if(e.button === 0) startHold(e); });
+  holdSecret.addEventListener('mouseup', function(e){ if(e.button === 0) resetHold(); });
+  holdSecret.addEventListener('mouseleave', resetHold);
   holdSecret.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+  holdSecret.addEventListener('selectstart', function(e){ e.preventDefault(); });
 
   // Tap a photo to pop it open; tap the backdrop or × to close.
   const lightbox = document.getElementById('lightbox');
